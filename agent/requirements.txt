@@ -1,0 +1,6 @@
+fastapi>=0.100.0
+uvicorn[standard]>=0.20.0
+python-dotenv>=1.0.0
+gt8004 @ git+https://github.com/vataops/gt8004-sdk.git
+# x402 결제를 사용할 경우 아래 주석 해제
+# fastapi-x402>=0.1.0
