@@ -164,7 +164,7 @@ const gt8004Plugin = {
       return;
     }
 
-    const endpoint = config.endpoint ?? "https://api.gt8004.xyz";
+    const endpoint = config.endpoint ?? "https://ingest.gt8004.xyz";
     const transport = new BatchTransport(
       config.agentId,
       endpoint,

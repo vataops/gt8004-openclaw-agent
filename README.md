@@ -23,7 +23,7 @@ plugins:
       config:
         agentId: "your-agent-id"
         apiKey: "your-api-key"
-        # endpoint: "https://api.gt8004.xyz"  # 기본값, 변경 불필요
+        # endpoint: "https://ingest.gt8004.xyz"  # 기본값, 변경 불필요
         # debug: false
 ```
 
@@ -107,7 +107,7 @@ plugins:
 
 로그 출력 예시:
 ```
-[GT8004] Plugin loaded. Agent: your-agent-id, Endpoint: https://api.gt8004.xyz
+[GT8004] Plugin loaded. Agent: your-agent-id, Endpoint: https://ingest.gt8004.xyz
 [GT8004] Sent 12 logs
 ```
 

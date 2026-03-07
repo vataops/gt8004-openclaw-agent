@@ -19,7 +19,7 @@
       "endpoint": {
         "type": "string",
         "description": "GT8004 Ingest API endpoint",
-        "default": "https://api.gt8004.xyz"
+        "default": "https://ingest.gt8004.xyz"
       },
       "debug": {
         "type": "boolean",
@@ -31,6 +31,6 @@
   "uiHints": {
     "agentId": { "label": "Agent ID", "placeholder": "your-agent-id" },
     "apiKey": { "label": "API Key", "placeholder": "your-api-key", "sensitive": true },
-    "endpoint": { "label": "Ingest Endpoint", "placeholder": "https://api.gt8004.xyz" }
+    "endpoint": { "label": "Ingest Endpoint", "placeholder": "https://ingest.gt8004.xyz" }
   }
 }
