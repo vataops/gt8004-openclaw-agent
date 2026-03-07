@@ -1,19 +1,19 @@
 # GT8004 OpenClaw Plugin
 
-OpenClaw 플러그인으로 모든 LLM 호출, 도구 실행, 메시지를 자동으로 GT8004 대시보드에 수집합니다.
+OpenClaw plugin that automatically captures all LLM calls, tool executions, and messages to the GT8004 analytics dashboard.
 
-코드 레벨 Hook 기반으로 동작하므로 **100% 자동 캡처**됩니다.
+Uses code-level hooks for **100% automatic capture** — no manual instrumentation required.
 
-## 설치
+## Installation
 
 ```bash
 git clone https://github.com/vataops/gt8004-openclaw-agent.git
 openclaw plugins install -l ./gt8004-openclaw-agent
 ```
 
-## 설정
+## Configuration
 
-OpenClaw 설정 파일(`openclaw.yaml` 또는 `~/.openclaw/config.yaml`)에 추가:
+Add to your OpenClaw config file (`openclaw.yaml` or `~/.openclaw/config.yaml`):
 
 ```yaml
 plugins:
@@ -23,77 +23,79 @@ plugins:
       config:
         agentId: "your-agent-id"
         apiKey: "your-api-key"
-        # endpoint: "https://ingest.gt8004.xyz"  # 기본값, 변경 불필요
+        # endpoint: "https://ingest.gt8004.xyz"  # default, no change needed
         # debug: false
 ```
 
-> GT8004 Agent ID와 API Key는 https://gt8004.xyz/register 에서 에이전트를 등록하면 발급됩니다.
+> Get your Agent ID and API Key by registering at https://gt8004.xyz/register
 
-## 자동 캡처 항목
+## What Gets Captured
 
-플러그인이 Hook하는 OpenClaw 이벤트:
+The plugin hooks into the following OpenClaw lifecycle events:
 
-| Hook | 캡처 데이터 | GT8004 매핑 |
-|------|------------|-------------|
-| `after_tool_call` | 도구명, 파라미터, 결과, 실행 시간 | `toolName`, `responseMs`, `requestBody/responseBody` |
-| `llm_output` | 모델, 프로바이더, 토큰 수, 비용 | `headers` (x-model, x-tokens-*) |
-| `message_sent` | 채널, 메시지 내용 | `responseBody` |
-| `gateway_stop` | - | 남은 로그 flush |
+| Hook | Captured Data | GT8004 Mapping |
+|------|--------------|----------------|
+| `after_tool_call` | Tool name, params, result, duration | `toolName`, `responseMs`, `requestBody/responseBody` |
+| `llm_output` | Model, provider, token count, cost | `headers` (x-model, x-tokens-*) |
+| `message_sent` | Channel, message content | `responseBody` |
+| `gateway_stop` | — | Flush remaining logs |
 
-## 데이터 흐름
+## Data Flow
 
 ```
-사용자 메시지
+User Message
     |
     v
 OpenClaw Gateway
     |
-    +-- LLM 호출 --> [llm_output hook] --+
-    |                                     |
-    +-- 도구 실행 --> [after_tool_call] --+
-    |                                     |
-    +-- 응답 전송 --> [message_sent] -----+
-                                          |
-                                          v
-                                   BatchTransport
-                                   (메모리 버퍼, 50개 또는 5초)
-                                          |
-                                          | POST /v1/ingest
-                                          v
-                                   GT8004 Platform
-                                   (요청 로그, 수익 검증, 집계)
-                                          |
-                                          v
-                                   GT8004 Dashboard
-                                   gt8004.xyz/agents/{id}
+    +-- LLM Call -----> [llm_output hook] --+
+    |                                       |
+    +-- Tool Exec ----> [after_tool_call] --+
+    |                                       |
+    +-- Send Reply ---> [message_sent] -----+
+                                            |
+                                            v
+                                     BatchTransport
+                                     (in-memory buffer, 50 entries or 5s)
+                                            |
+                                            | POST /v1/ingest
+                                            v
+                                     GT8004 Platform
+                                     (log storage, on-chain revenue verification, aggregation)
+                                            |
+                                            v
+                                     GT8004 Dashboard
+                                     gt8004.xyz/agents/{id}
 ```
 
-## GT8004 대시보드에서 확인 가능한 것
+## Dashboard
 
-| 항목 | 설명 |
-|------|------|
-| Overview | 총 요청 수, 평균 응답 시간, 수익 |
-| Analytics | 일별/주별 요청 추이 |
-| Customers | 고객별 사용 내역, 이탈 위험 |
-| Revenue | 수익 추이, ARPU, 도구별 수익 |
-| Performance | p50/p95/p99 응답 시간 |
-| Observability | 실시간 로그 스트림 |
+View your analytics at `https://gt8004.xyz/agents/{your-agent-id}`:
 
-## 동작 원리
+| Section | Description |
+|---------|-------------|
+| Overview | Total requests, avg response time, revenue |
+| Analytics | Daily/weekly request trends |
+| Customers | Per-customer usage, churn risk |
+| Revenue | Revenue trends, ARPU, per-tool breakdown |
+| Performance | p50/p95/p99 response time |
+| Observability | Real-time log stream |
 
-이 플러그인은 OpenClaw의 Plugin Hook 시스템을 사용합니다:
+## How It Works
 
-1. **`before_tool_call`** - 도구 호출 시작 시간 기록
-2. **`after_tool_call`** - 도구 실행 결과와 소요 시간을 GT8004 LogEntry로 변환
-3. **`llm_output`** - LLM 응답의 모델명, 토큰 사용량을 GT8004 LogEntry로 변환
-4. **`message_sent`** - 전송된 메시지를 GT8004 LogEntry로 기록
-5. **`gateway_stop`** - 종료 시 남은 로그를 모두 flush
+This plugin uses OpenClaw's Plugin Hook system:
 
-LogEntry는 `BatchTransport`에 의해 메모리에 버퍼링되고, 50개가 모이거나 5초 간격으로 GT8004 `/v1/ingest`로 배치 전송됩니다.
+1. **`before_tool_call`** — Records tool call start time
+2. **`after_tool_call`** — Converts tool result and duration into a GT8004 LogEntry
+3. **`llm_output`** — Converts LLM model name and token usage into a GT8004 LogEntry
+4. **`message_sent`** — Records sent messages as GT8004 LogEntries
+5. **`gateway_stop`** — Flushes all remaining logs on shutdown
 
-## 디버그 모드
+LogEntries are buffered in memory by `BatchTransport` and sent in batches to GT8004 `/v1/ingest` every 50 entries or 5 seconds.
 
-전송 상태를 확인하려면 `debug: true`를 설정하세요:
+## Debug Mode
+
+To inspect transport activity, set `debug: true`:
 
 ```yaml
 plugins:
@@ -105,23 +107,23 @@ plugins:
         debug: true
 ```
 
-로그 출력 예시:
+Example output:
 ```
 [GT8004] Plugin loaded. Agent: your-agent-id, Endpoint: https://ingest.gt8004.xyz
 [GT8004] Sent 12 logs
 ```
 
-## 파일 구조
+## File Structure
 
 ```
 gt8004-openclaw-agent/
-  index.ts                  # 플러그인 엔트리포인트 (Hook 등록 + BatchTransport)
-  openclaw.plugin.json      # OpenClaw 플러그인 매니페스트
-  package.json              # npm 패키지 정의
+  index.ts                  # Plugin entry point (hook registration + BatchTransport)
+  openclaw.plugin.json      # OpenClaw plugin manifest
+  package.json              # npm package definition
   README.md
 ```
 
-## 관련 링크
+## Links
 
 - [GT8004 Platform](https://gt8004.xyz)
 - [GT8004 SDK](https://github.com/vataops/gt8004-sdk)
