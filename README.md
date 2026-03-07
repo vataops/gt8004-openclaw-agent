@@ -6,14 +6,6 @@ OpenClaw 플러그인으로 모든 LLM 호출, 도구 실행, 메시지를 자�
 
 ## 설치
 
-### npm에서 설치
-
-```bash
-openclaw plugins install @gt8004/openclaw-plugin
-```
-
-### 로컬에서 설치 (개발용)
-
 ```bash
 git clone https://github.com/vataops/gt8004-openclaw-agent.git
 openclaw plugins install -l ./gt8004-openclaw-agent
