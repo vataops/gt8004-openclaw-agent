@@ -1,0 +1,36 @@
+{
+  "id": "gt8004",
+  "name": "GT8004 Analytics",
+  "description": "Automatic request, tool call, and revenue tracking for the GT8004 BI platform",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["agentId", "apiKey"],
+    "properties": {
+      "agentId": {
+        "type": "string",
+        "description": "GT8004 Agent ID"
+      },
+      "apiKey": {
+        "type": "string",
+        "description": "GT8004 API Key"
+      },
+      "endpoint": {
+        "type": "string",
+        "description": "GT8004 Ingest API endpoint",
+        "default": "https://api.gt8004.xyz"
+      },
+      "debug": {
+        "type": "boolean",
+        "description": "Enable debug logging",
+        "default": false
+      }
+    }
+  },
+  "uiHints": {
+    "agentId": { "label": "Agent ID", "placeholder": "your-agent-id" },
+    "apiKey": { "label": "API Key", "placeholder": "your-api-key", "sensitive": true },
+    "endpoint": { "label": "Ingest Endpoint", "placeholder": "https://api.gt8004.xyz" }
+  }
+}

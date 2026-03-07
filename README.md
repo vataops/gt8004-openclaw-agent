@@ -1,183 +1,79 @@
-# GT8004 OpenClaw Agent
+# GT8004 OpenClaw Plugin
 
-GT8004 analytics가 내장된 OpenClaw 에이전트 보일러플레이트.
+OpenClaw 플러그인으로 모든 LLM 호출, 도구 실행, 메시지를 자동으로 GT8004 대시보드에 수집합니다.
 
-이 템플릿으로 에이전트를 만들면, 모든 요청/수익 데이터가 자동으로 GT8004 대시보드에 수집됩니다.
+코드 레벨 Hook 기반으로 동작하므로 **100% 자동 캡처**됩니다.
 
-## 빠른 시작
+## 설치
 
-### 1. 클론 및 설치
+### npm에서 설치
+
+```bash
+openclaw plugins install @gt8004/openclaw-plugin
+```
+
+### 로컬에서 설치 (개발용)
 
 ```bash
 git clone https://github.com/vataops/gt8004-openclaw-agent.git
-cd gt8004-openclaw-agent/agent
-pip install -r requirements.txt
+openclaw plugins install -l ./gt8004-openclaw-agent
 ```
 
-### 2. 환경변수 설정
+## 설정
 
-```bash
-cp .env.example .env
+OpenClaw 설정 파일(`openclaw.yaml` 또는 `~/.openclaw/config.yaml`)에 추가:
+
+```yaml
+plugins:
+  entries:
+    gt8004:
+      enabled: true
+      config:
+        agentId: "your-agent-id"
+        apiKey: "your-api-key"
+        # endpoint: "https://api.gt8004.xyz"  # 기본값, 변경 불필요
+        # debug: false
 ```
 
-`.env` 파일을 편집하세요:
+> GT8004 Agent ID와 API Key는 https://gt8004.xyz/register 에서 에이전트를 등록하면 발급됩니다.
 
-```bash
-GT8004_AGENT_ID=your-agent-id    # GT8004 대시보드에서 발급
-GT8004_API_KEY=your-api-key      # GT8004 대시보드에서 발급
-OPENCLAW_AGENT_NAME=my-agent
-```
+## 자동 캡처 항목
 
-> GT8004 agent ID와 API key는 https://gt8004.xyz/register 에서 에이전트를 등록하면 발급됩니다.
+플러그인이 Hook하는 OpenClaw 이벤트:
 
-### 3. 실행
-
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-### 4. 테스트
-
-```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "hello"}'
-```
-
-대시보드에서 확인: `https://gt8004.xyz/agents/{your-agent-id}`
+| Hook | 캡처 데이터 | GT8004 매핑 |
+|------|------------|-------------|
+| `after_tool_call` | 도구명, 파라미터, 결과, 실행 시간 | `toolName`, `responseMs`, `requestBody/responseBody` |
+| `llm_output` | 모델, 프로바이더, 토큰 수, 비용 | `headers` (x-model, x-tokens-*) |
+| `message_sent` | 채널, 메시지 내용 | `responseBody` |
+| `gateway_stop` | - | 남은 로그 flush |
 
 ## 데이터 흐름
 
 ```
-OpenClaw / MeshCore 사용자
-        |
-        | HTTP Request
-        v
-+---------------------+
-|   FastAPI Server    |
-|   (agent/main.py)   |
-+----------+----------+
-           |
-           | GT8004Middleware (자동 캡처)
-           | - method, path, status
-           | - latency (ms)
-           | - request/response body
-           | - x402 결제 정보
-           | - 클라이언트 IP, User-Agent
-           v
-+---------------------+
-|   GT8004 Logger     |
-|   - 메모리 버퍼     |
-|   - 배치 전송 (50개 또는 5초) |
-+----------+----------+
-           |
-           | POST /v1/ingest
-           v
-+---------------------+
-|   GT8004 Platform   |
-|   - 요청 로그 저장   |
-|   - 수익 on-chain 검증 |
-|   - 실시간 집계      |
-+----------+----------+
-           |
-           v
-+---------------------+
-|   GT8004 Dashboard  |
-|   gt8004.xyz        |
-+---------------------+
-```
-
-## x402 결제 연동
-
-에이전트에 USDC 과금을 추가하려면:
-
-### 1. 의존성 추가
-
-`requirements.txt`에서 `fastapi-x402` 주석을 해제하세요.
-
-### 2. 미들웨어 활성화
-
-`main.py`에서 x402 관련 주석을 해제하세요:
-
-```python
-from fastapi_x402 import init_x402
-
-# x402 먼저 등록
-init_x402(app, pay_to="0xYourWalletAddress", network="base")
-
-# GT8004는 x402 이후에 등록 (결제 헤더를 캡처하기 위해)
-app.add_middleware(GT8004Middleware, logger=logger)
-```
-
-> 미들웨어 순서가 중요합니다. GT8004가 x402 이후에 등록되어야 `X-PAYMENT-RESPONSE` 헤더를 읽을 수 있습니다.
-
-### 3. 자동 수익 추적
-
-x402를 통한 USDC 결제는 GT8004가 자동으로:
-- 트랜잭션 해시 추출
-- On-chain USDC Transfer 이벤트 검증
-- 검증된 수익만 대시보드에 표시
-
-지원 네트워크: Ethereum Mainnet, Base Mainnet, Base Sepolia, Ethereum Sepolia
-
-## MeshCore 마켓플레이스 등록
-
-에이전트를 MeshCore에 등록하여 수익화할 수 있습니다:
-
-```bash
-meshcore register \
-  --name "my-agent" \
-  --description "My GT8004-powered agent" \
-  --endpoint "https://your-domain.com/chat"
-```
-
-MeshCore를 통한 모든 호출도 GT8004 미들웨어가 자동으로 캡처합니다.
-
-## Docker 배포
-
-```bash
-docker build -t my-openclaw-agent .
-docker run -p 8000:8000 --env-file agent/.env my-openclaw-agent
-```
-
-## 커스터마이징
-
-### 엔드포인트 추가
-
-`main.py`에 새 엔드포인트를 추가하면 자동으로 추적됩니다:
-
-```python
-@app.post("/search")
-async def search(request: Request):
-    body = await request.json()
-    query = body.get("query", "")
-    results = do_search(query)  # 비즈니스 로직
-    return {"results": results}
-```
-
-### 고객 ID 커스터마이징
-
-기본적으로 클라이언트 IP로 고객을 식별합니다. API 키 등으로 변경하려면:
-
-```python
-app.add_middleware(
-    GT8004Middleware,
-    logger=logger,
-    extract_customer_id=lambda req: req.headers.get("x-api-key")
-)
-```
-
-### 민감한 데이터 마스킹
-
-```python
-def mask_body(body: str) -> str:
-    return body.replace('"password":', '"password":"***"')
-
-app.add_middleware(
-    GT8004Middleware,
-    logger=logger,
-    sanitize_fn=mask_body
-)
+사용자 메시지
+    |
+    v
+OpenClaw Gateway
+    |
+    +-- LLM 호출 --> [llm_output hook] --+
+    |                                     |
+    +-- 도구 실행 --> [after_tool_call] --+
+    |                                     |
+    +-- 응답 전송 --> [message_sent] -----+
+                                          |
+                                          v
+                                   BatchTransport
+                                   (메모리 버퍼, 50개 또는 5초)
+                                          |
+                                          | POST /v1/ingest
+                                          v
+                                   GT8004 Platform
+                                   (요청 로그, 수익 검증, 집계)
+                                          |
+                                          v
+                                   GT8004 Dashboard
+                                   gt8004.xyz/agents/{id}
 ```
 
 ## GT8004 대시보드에서 확인 가능한 것
@@ -191,13 +87,54 @@ app.add_middleware(
 | Performance | p50/p95/p99 응답 시간 |
 | Observability | 실시간 로그 스트림 |
 
+## 동작 원리
+
+이 플러그인은 OpenClaw의 Plugin Hook 시스템을 사용합니다:
+
+1. **`before_tool_call`** - 도구 호출 시작 시간 기록
+2. **`after_tool_call`** - 도구 실행 결과와 소요 시간을 GT8004 LogEntry로 변환
+3. **`llm_output`** - LLM 응답의 모델명, 토큰 사용량을 GT8004 LogEntry로 변환
+4. **`message_sent`** - 전송된 메시지를 GT8004 LogEntry로 기록
+5. **`gateway_stop`** - 종료 시 남은 로그를 모두 flush
+
+LogEntry는 `BatchTransport`에 의해 메모리에 버퍼링되고, 50개가 모이거나 5초 간격으로 GT8004 `/v1/ingest`로 배치 전송됩니다.
+
+## 디버그 모드
+
+전송 상태를 확인하려면 `debug: true`를 설정하세요:
+
+```yaml
+plugins:
+  entries:
+    gt8004:
+      config:
+        agentId: "your-agent-id"
+        apiKey: "your-api-key"
+        debug: true
+```
+
+로그 출력 예시:
+```
+[GT8004] Plugin loaded. Agent: your-agent-id, Endpoint: https://api.gt8004.xyz
+[GT8004] Sent 12 logs
+```
+
+## 파일 구조
+
+```
+gt8004-openclaw-agent/
+  index.ts                  # 플러그인 엔트리포인트 (Hook 등록 + BatchTransport)
+  openclaw.plugin.json      # OpenClaw 플러그인 매니페스트
+  package.json              # npm 패키지 정의
+  README.md
+```
+
 ## 관련 링크
 
 - [GT8004 Platform](https://gt8004.xyz)
-- [GT8004 Python SDK](https://github.com/vataops/gt8004-sdk)
+- [GT8004 SDK](https://github.com/vataops/gt8004-sdk)
 - [GT8004 Documentation](https://github.com/vataops/gt8004)
-- [OpenClaw](https://openclaw.ai)
-- [MeshCore Marketplace](https://github.com/openclaw/openclaw/discussions/30008)
+- [OpenClaw Plugin Docs](https://docs.openclaw.ai/tools/skills)
 
 ## License
 
