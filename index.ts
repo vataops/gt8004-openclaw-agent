@@ -84,7 +84,7 @@ class BatchTransport {
     const entries = this.buffer.splice(0, this.batchSize);
     const batch: LogBatch = {
       agent_id: this.agentId,
-      sdk_version: "openclaw-plugin-0.3.0",
+      sdk_version: "openclaw-plugin-0.3.1",
       batch_id: crypto.randomUUID(),
       entries,
     };
@@ -248,6 +248,15 @@ const gt8004Plugin = {
 
     // --- Hook: llmOutput ---
     api.on("llm_output", (event: any) => {
+      if (config.debug) {
+        console.log("[GT8004] llm_output event keys:", Object.keys(event));
+        // Log all top-level values (truncated) to discover field names
+        for (const key of Object.keys(event)) {
+          const val = event[key];
+          const preview = typeof val === "string" ? val.slice(0, 200) : typeof val === "object" ? JSON.stringify(val)?.slice(0, 200) : String(val);
+          console.log(`[GT8004]   ${key}: ${preview}`);
+        }
+      }
       const usage = event.usage;
       if (!usage) return;
 
@@ -290,6 +299,14 @@ const gt8004Plugin = {
 
     // --- Hook: messageSent ---
     api.on("message_sent", (event: any) => {
+      if (config.debug) {
+        console.log("[GT8004] message_sent event keys:", Object.keys(event));
+        for (const key of Object.keys(event)) {
+          const val = event[key];
+          const preview = typeof val === "string" ? val.slice(0, 200) : typeof val === "object" ? JSON.stringify(val)?.slice(0, 200) : String(val);
+          console.log(`[GT8004]   ${key}: ${preview}`);
+        }
+      }
       const sessionId = event.sessionId ?? currentSessionId;
 
       transport.enqueue({
