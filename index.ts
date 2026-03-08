@@ -84,7 +84,7 @@ class BatchTransport {
     const entries = this.buffer.splice(0, this.batchSize);
     const batch: LogBatch = {
       agent_id: this.agentId,
-      sdk_version: "openclaw-plugin-0.2.0",
+      sdk_version: "openclaw-plugin-0.3.0",
       batch_id: crypto.randomUUID(),
       entries,
     };
@@ -259,6 +259,10 @@ const gt8004Plugin = {
         sessionMsgIndex.set(sessionId, idx + 1);
       }
 
+      // Capture prompt/response text for session conversation view
+      const promptText = truncate(event.prompt ?? event.input ?? event.messages);
+      const responseText = truncate(event.response ?? event.output ?? event.text ?? event.content);
+
       transport.enqueue({
         requestId: crypto.randomUUID(),
         toolName: event.model ?? "llm",
@@ -266,6 +270,10 @@ const gt8004Plugin = {
         path: `/openclaw/llm/${event.provider ?? "unknown"}`,
         statusCode: 200,
         responseMs: event.durationMs ?? 0,
+        requestBody: promptText,
+        responseBody: responseText,
+        requestBodySize: promptText?.length,
+        responseBodySize: responseText?.length,
         protocol: "http",
         source: "openclaw",
         timestamp: new Date().toISOString(),
