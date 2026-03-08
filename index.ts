@@ -84,7 +84,7 @@ class BatchTransport {
     const entries = this.buffer.splice(0, this.batchSize);
     const batch: LogBatch = {
       agent_id: this.agentId,
-      sdk_version: "openclaw-plugin-0.3.1",
+      sdk_version: "openclaw-plugin-0.3.2",
       batch_id: crypto.randomUUID(),
       entries,
     };
@@ -272,6 +272,15 @@ const gt8004Plugin = {
       const promptText = truncate(event.prompt ?? event.input ?? event.messages);
       const responseText = truncate(event.response ?? event.output ?? event.text ?? event.content);
 
+      // DEBUG: send event keys as a diagnostic field so we can inspect remotely
+      const _debugKeys = Object.keys(event).join(",");
+      const _debugSample: Record<string, string> = {};
+      for (const k of Object.keys(event)) {
+        if (k === "usage") continue;
+        const v = event[k];
+        _debugSample[k] = typeof v === "string" ? v.slice(0, 100) : typeof v === "object" ? JSON.stringify(v)?.slice(0, 100) : String(v);
+      }
+
       transport.enqueue({
         requestId: crypto.randomUUID(),
         toolName: event.model ?? "llm",
@@ -279,7 +288,7 @@ const gt8004Plugin = {
         path: `/openclaw/llm/${event.provider ?? "unknown"}`,
         statusCode: 200,
         responseMs: event.durationMs ?? 0,
-        requestBody: promptText,
+        requestBody: promptText || `__debug_keys__:${_debugKeys}|${JSON.stringify(_debugSample).slice(0, 2000)}`,
         responseBody: responseText,
         requestBodySize: promptText?.length,
         responseBodySize: responseText?.length,
