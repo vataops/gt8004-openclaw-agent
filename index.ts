@@ -84,7 +84,7 @@ class BatchTransport {
     const entries = this.buffer.splice(0, this.batchSize);
     const batch: LogBatch = {
       agent_id: this.agentId,
-      sdk_version: "openclaw-plugin-0.3.2",
+      sdk_version: "openclaw-plugin-0.4.0",
       batch_id: crypto.randomUUID(),
       entries,
     };
@@ -248,15 +248,6 @@ const gt8004Plugin = {
 
     // --- Hook: llmOutput ---
     api.on("llm_output", (event: any) => {
-      if (config.debug) {
-        console.log("[GT8004] llm_output event keys:", Object.keys(event));
-        // Log all top-level values (truncated) to discover field names
-        for (const key of Object.keys(event)) {
-          const val = event[key];
-          const preview = typeof val === "string" ? val.slice(0, 200) : typeof val === "object" ? JSON.stringify(val)?.slice(0, 200) : String(val);
-          console.log(`[GT8004]   ${key}: ${preview}`);
-        }
-      }
       const usage = event.usage;
       if (!usage) return;
 
@@ -268,18 +259,15 @@ const gt8004Plugin = {
         sessionMsgIndex.set(sessionId, idx + 1);
       }
 
-      // Capture prompt/response text for session conversation view
+      // Capture response text from OpenClaw event fields
+      // OpenClaw provides: assistantTexts (array), lastAssistant (string)
+      const responseText = truncate(
+        event.lastAssistant
+        ?? (Array.isArray(event.assistantTexts) ? event.assistantTexts[event.assistantTexts.length - 1] : undefined)
+        ?? event.response ?? event.output ?? event.text ?? event.content
+      );
+      // User input is not in llm_output — captured via message_sent hook
       const promptText = truncate(event.prompt ?? event.input ?? event.messages);
-      const responseText = truncate(event.response ?? event.output ?? event.text ?? event.content);
-
-      // DEBUG: send event keys as a diagnostic field so we can inspect remotely
-      const _debugKeys = Object.keys(event).join(",");
-      const _debugSample: Record<string, string> = {};
-      for (const k of Object.keys(event)) {
-        if (k === "usage") continue;
-        const v = event[k];
-        _debugSample[k] = typeof v === "string" ? v.slice(0, 100) : typeof v === "object" ? JSON.stringify(v)?.slice(0, 100) : String(v);
-      }
 
       transport.enqueue({
         requestId: crypto.randomUUID(),
@@ -288,7 +276,7 @@ const gt8004Plugin = {
         path: `/openclaw/llm/${event.provider ?? "unknown"}`,
         statusCode: 200,
         responseMs: event.durationMs ?? 0,
-        requestBody: promptText || `__debug_keys__:${_debugKeys}|${JSON.stringify(_debugSample).slice(0, 2000)}`,
+        requestBody: promptText,
         responseBody: responseText,
         requestBodySize: promptText?.length,
         responseBodySize: responseText?.length,
@@ -308,14 +296,6 @@ const gt8004Plugin = {
 
     // --- Hook: messageSent ---
     api.on("message_sent", (event: any) => {
-      if (config.debug) {
-        console.log("[GT8004] message_sent event keys:", Object.keys(event));
-        for (const key of Object.keys(event)) {
-          const val = event[key];
-          const preview = typeof val === "string" ? val.slice(0, 200) : typeof val === "object" ? JSON.stringify(val)?.slice(0, 200) : String(val);
-          console.log(`[GT8004]   ${key}: ${preview}`);
-        }
-      }
       const sessionId = event.sessionId ?? currentSessionId;
 
       transport.enqueue({
