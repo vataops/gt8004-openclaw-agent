@@ -4,30 +4,55 @@ OpenClaw plugin that automatically captures all LLM calls, tool executions, and 
 
 Uses code-level hooks for **100% automatic capture** — no manual instrumentation required.
 
-## Installation
+## Quick Start
+
+### Step 1: Register your agent
+
+Go to **https://gt8004.xyz/register/openclaw** and register your agent.
+
+You'll receive:
+- **Agent ID** (e.g. `openclaw-a1b2c3d4`)
+- **API Key** (e.g. `sk_...`)
+
+Save these — you'll need them in Step 3.
+
+### Step 2: Install the plugin
 
 ```bash
 git clone https://github.com/vataops/gt8004-openclaw-agent.git
 openclaw plugins install -l ./gt8004-openclaw-agent
 ```
 
-## Configuration
+### Step 3: Configure
 
-Add to your OpenClaw config file (`openclaw.yaml` or `~/.openclaw/config.yaml`):
+Add to your OpenClaw config file (`~/.openclaw/config.yaml`):
 
 ```yaml
 plugins:
+  allow:
+    - gt8004
   entries:
     gt8004:
       enabled: true
       config:
-        agentId: "your-agent-id"
-        apiKey: "your-api-key"
-        # endpoint: "https://ingest.gt8004.xyz"  # default, no change needed
-        # debug: false
+        agentId: "openclaw-a1b2c3d4"   # from Step 1
+        apiKey: "sk_..."               # from Step 1
 ```
 
-> Get your Agent ID and API Key by registering at https://gt8004.xyz/register
+### Step 4: Restart OpenClaw
+
+```bash
+openclaw start
+```
+
+You should see:
+```
+[GT8004] Plugin loaded. Agent: openclaw-a1b2c3d4, Endpoint: https://ingest.gt8004.xyz
+```
+
+### Step 5: View your dashboard
+
+Go to `https://gt8004.xyz/agents/openclaw-a1b2c3d4` to see your analytics.
 
 ## What Gets Captured
 
@@ -61,73 +86,68 @@ OpenClaw Gateway
                                             | POST /v1/ingest
                                             v
                                      GT8004 Platform
-                                     (log storage, on-chain revenue verification, aggregation)
                                             |
                                             v
                                      GT8004 Dashboard
                                      gt8004.xyz/agents/{id}
 ```
 
-## Dashboard
+## Configuration Options
 
-View your analytics at `https://gt8004.xyz/agents/{your-agent-id}`:
-
-| Section | Description |
-|---------|-------------|
-| Overview | Total requests, avg response time, revenue |
-| Analytics | Daily/weekly request trends |
-| Customers | Per-customer usage, churn risk |
-| Revenue | Revenue trends, ARPU, per-tool breakdown |
-| Performance | p50/p95/p99 response time |
-| Observability | Real-time log stream |
-
-## How It Works
-
-This plugin uses OpenClaw's Plugin Hook system:
-
-1. **`before_tool_call`** — Records tool call start time
-2. **`after_tool_call`** — Converts tool result and duration into a GT8004 LogEntry
-3. **`llm_output`** — Converts LLM model name and token usage into a GT8004 LogEntry
-4. **`message_sent`** — Records sent messages as GT8004 LogEntries
-5. **`gateway_stop`** — Flushes all remaining logs on shutdown
-
-LogEntries are buffered in memory by `BatchTransport` and sent in batches to GT8004 `/v1/ingest` every 50 entries or 5 seconds.
+| Option | Type | Required | Default | Description |
+|--------|------|----------|---------|-------------|
+| `agentId` | string | **Yes** | — | Agent ID from registration |
+| `apiKey` | string | **Yes** | — | API Key from registration |
+| `endpoint` | string | No | `https://ingest.gt8004.xyz` | Ingest API endpoint |
+| `debug` | boolean | No | `false` | Enable debug logging |
 
 ## Debug Mode
 
-To inspect transport activity, set `debug: true`:
+To inspect transport activity:
 
 ```yaml
 plugins:
   entries:
     gt8004:
       config:
-        agentId: "your-agent-id"
-        apiKey: "your-api-key"
+        agentId: "openclaw-a1b2c3d4"
+        apiKey: "sk_..."
         debug: true
 ```
 
-Example output:
+Output:
 ```
-[GT8004] Plugin loaded. Agent: your-agent-id, Endpoint: https://ingest.gt8004.xyz
+[GT8004] Plugin loaded. Agent: openclaw-a1b2c3d4, Endpoint: https://ingest.gt8004.xyz
 [GT8004] Sent 12 logs
 ```
 
-## File Structure
+## Troubleshooting
 
+### `must have required property 'agentId'`
+
+You need to register first at https://gt8004.xyz/register/openclaw and add the credentials to your config file. See Step 1 & 3.
+
+### `plugins.allow is empty`
+
+Add `gt8004` to the `plugins.allow` list in your config:
+
+```yaml
+plugins:
+  allow:
+    - gt8004
 ```
-gt8004-openclaw-agent/
-  index.ts                  # Plugin entry point (hook registration + BatchTransport)
-  openclaw.plugin.json      # OpenClaw plugin manifest
-  package.json              # npm package definition
-  README.md
-```
+
+### Logs not appearing on dashboard
+
+1. Verify `agentId` and `apiKey` are correct
+2. Set `debug: true` to see transport activity
+3. Check network connectivity to `ingest.gt8004.xyz`
+4. Restart OpenClaw after config changes
 
 ## Links
 
 - [GT8004 Platform](https://gt8004.xyz)
 - [GT8004 SDK](https://github.com/vataops/gt8004-sdk)
-- [GT8004 Documentation](https://github.com/vataops/gt8004)
 - [OpenClaw Plugin Docs](https://docs.openclaw.ai/tools/skills)
 
 ## License
