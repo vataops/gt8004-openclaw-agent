@@ -27,22 +27,26 @@ openclaw plugins install -l ./gt8004-openclaw-agent
 
 Add to your OpenClaw config file (`~/.openclaw/config.yaml`):
 
-```yaml
-plugins:
-  allow:
-    - gt8004
-  entries:
-    gt8004:
-      enabled: true
-      config:
-        agentId: "openclaw-a1b2c3d4"   # from Step 1
-        apiKey: "sk_..."               # from Step 1
+```json5
+{
+  "plugins": {
+    "entries": {
+      "gt8004": {
+        "enabled": true,
+        "config": {
+          "agentId": "openclaw-a1b2c3d4",   // from Step 1
+          "apiKey": "sk_..."                // from Step 1
+        }
+      }
+    }
+  }
+}
 ```
 
 ### Step 4: Restart OpenClaw
 
 ```bash
-openclaw start
+openclaw gateway restart
 ```
 
 You should see:
@@ -127,15 +131,9 @@ Output:
 
 You need to register first at https://gt8004.xyz/register/openclaw and add the credentials to your config file. See Step 1 & 3.
 
-### `plugins.allow is empty`
+### `plugins.allow is empty` warning
 
-Add `gt8004` to the `plugins.allow` list in your config:
-
-```yaml
-plugins:
-  allow:
-    - gt8004
-```
+This is just a warning, not an error. The plugin loads normally without `plugins.allow`. You can safely ignore it.
 
 ### Logs not appearing on dashboard
 
