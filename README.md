@@ -25,7 +25,7 @@ openclaw plugins install -l ./gt8004-openclaw-agent
 
 ### Step 3: Configure
 
-Add to your OpenClaw config file (`~/.openclaw/config.yaml`):
+Add to your OpenClaw config file (`~/.openclaw/openclaw.json`), inside `plugins.entries`:
 
 ```json5
 {
@@ -107,16 +107,17 @@ OpenClaw Gateway
 
 ## Debug Mode
 
-To inspect transport activity:
+To inspect transport activity, add `"debug": true` to your config:
 
-```yaml
-plugins:
-  entries:
-    gt8004:
-      config:
-        agentId: "openclaw-a1b2c3d4"
-        apiKey: "sk_..."
-        debug: true
+```json5
+"gt8004": {
+  "enabled": true,
+  "config": {
+    "agentId": "openclaw-a1b2c3d4",
+    "apiKey": "sk_...",
+    "debug": true
+  }
+}
 ```
 
 Output:
