@@ -27,6 +27,22 @@ interface LogEntry {
   protocol?: string;
   source?: string;
   timestamp: string;
+
+  // OpenClaw-specific fields
+  llmModel?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  sessionId?: string;
+  messageIndex?: number;
+  toolExecutionMs?: number;
+  acpJobId?: string;
+  acpPhase?: string;
+  acpServiceFee?: number;
+  acpOfferingName?: string;
+  acpClientAddress?: string;
+  acpProviderAddress?: string;
 }
 
 interface LogBatch {
@@ -68,7 +84,7 @@ class BatchTransport {
     const entries = this.buffer.splice(0, this.batchSize);
     const batch: LogBatch = {
       agent_id: this.agentId,
-      sdk_version: "openclaw-plugin-0.1.0",
+      sdk_version: "openclaw-plugin-0.2.0",
       batch_id: crypto.randomUUID(),
       entries,
     };
@@ -178,6 +194,18 @@ const gt8004Plugin = {
     // Track tool call start times
     const toolTimers = new Map<string, number>();
 
+    // Track per-session message index
+    const sessionMsgIndex = new Map<string, number>();
+
+    // Current session ID (set by session events or derived from conversation)
+    let currentSessionId: string | undefined;
+
+    // --- Hook: sessionStart ---
+    api.on("session_start", (event: any) => {
+      currentSessionId = event.sessionId ?? crypto.randomUUID();
+      sessionMsgIndex.set(currentSessionId!, 0);
+    });
+
     // --- Hook: beforeToolCall ---
     api.on("before_tool_call", (event: any) => {
       const callId =
@@ -212,6 +240,9 @@ const gt8004Plugin = {
         protocol: "mcp",
         source: "openclaw",
         timestamp: new Date().toISOString(),
+        // OpenClaw-specific
+        toolExecutionMs: responseMs,
+        sessionId: event.sessionId ?? currentSessionId,
       });
     });
 
@@ -220,12 +251,13 @@ const gt8004Plugin = {
       const usage = event.usage;
       if (!usage) return;
 
-      const headers: Record<string, string> = {};
-      if (event.model) headers["x-model"] = String(event.model);
-      if (event.provider) headers["x-provider"] = String(event.provider);
-      if (usage.input) headers["x-tokens-input"] = String(usage.input);
-      if (usage.output) headers["x-tokens-output"] = String(usage.output);
-      if (usage.total) headers["x-tokens-total"] = String(usage.total);
+      const sessionId = event.sessionId ?? currentSessionId;
+      let msgIndex: number | undefined;
+      if (sessionId) {
+        const idx = sessionMsgIndex.get(sessionId) ?? 0;
+        msgIndex = idx;
+        sessionMsgIndex.set(sessionId, idx + 1);
+      }
 
       transport.enqueue({
         requestId: crypto.randomUUID(),
@@ -234,15 +266,24 @@ const gt8004Plugin = {
         path: `/openclaw/llm/${event.provider ?? "unknown"}`,
         statusCode: 200,
         responseMs: event.durationMs ?? 0,
-        headers,
         protocol: "http",
         source: "openclaw",
         timestamp: new Date().toISOString(),
+        // OpenClaw-specific
+        llmModel: event.model,
+        inputTokens: usage.input ?? usage.inputTokens ?? usage.prompt_tokens,
+        outputTokens: usage.output ?? usage.outputTokens ?? usage.completion_tokens,
+        cacheReadTokens: usage.cacheRead ?? usage.cache_read_tokens,
+        cacheWriteTokens: usage.cacheWrite ?? usage.cache_write_tokens,
+        sessionId,
+        messageIndex: msgIndex,
       });
     });
 
     // --- Hook: messageSent ---
     api.on("message_sent", (event: any) => {
+      const sessionId = event.sessionId ?? currentSessionId;
+
       transport.enqueue({
         requestId: crypto.randomUUID(),
         toolName: "message",
@@ -250,10 +291,36 @@ const gt8004Plugin = {
         path: `/openclaw/message/${event.channel ?? "default"}`,
         statusCode: 200,
         responseMs: 0,
+        requestBody: truncate(event.userMessage ?? event.input),
         responseBody: truncate(event.text ?? event.content),
         protocol: "http",
         source: "openclaw",
         timestamp: new Date().toISOString(),
+        // OpenClaw-specific
+        sessionId,
+      });
+    });
+
+    // --- Hook: acpJobEvent (ACP commerce tracking) ---
+    api.on("acp_job_event", (event: any) => {
+      transport.enqueue({
+        requestId: crypto.randomUUID(),
+        toolName: event.offeringName ?? "acp",
+        method: "POST",
+        path: `/openclaw/acp/${event.phase ?? "unknown"}`,
+        statusCode: 200,
+        responseMs: 0,
+        protocol: "http",
+        source: "openclaw",
+        timestamp: new Date().toISOString(),
+        // OpenClaw-specific
+        acpJobId: event.jobId,
+        acpPhase: event.phase,
+        acpServiceFee: event.serviceFee ?? event.price,
+        acpOfferingName: event.offeringName,
+        acpClientAddress: event.clientAddress,
+        acpProviderAddress: event.providerAddress,
+        sessionId: event.sessionId ?? currentSessionId,
       });
     });
 
