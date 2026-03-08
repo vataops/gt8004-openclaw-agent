@@ -1,6 +1,6 @@
 {
   "name": "gt8004",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "GT8004 analytics plugin for OpenClaw",
   "type": "module",
   "openclaw": {

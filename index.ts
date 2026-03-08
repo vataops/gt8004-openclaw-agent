@@ -84,7 +84,7 @@ class BatchTransport {
     const entries = this.buffer.splice(0, this.batchSize);
     const batch: LogBatch = {
       agent_id: this.agentId,
-      sdk_version: "openclaw-plugin-0.4.0",
+      sdk_version: "openclaw-plugin-0.4.1",
       batch_id: crypto.randomUUID(),
       entries,
     };
@@ -200,6 +200,10 @@ const gt8004Plugin = {
     // Current session ID (set by session events or derived from conversation)
     let currentSessionId: string | undefined;
 
+    // Current run ID — each user message gets a unique runId from OpenClaw.
+    // Used as session identifier so each question-answer pair = 1 session.
+    let currentRunId: string | undefined;
+
     // --- Hook: sessionStart ---
     api.on("session_start", (event: any) => {
       currentSessionId = event.sessionId ?? crypto.randomUUID();
@@ -242,7 +246,7 @@ const gt8004Plugin = {
         timestamp: new Date().toISOString(),
         // OpenClaw-specific
         toolExecutionMs: responseMs,
-        sessionId: event.sessionId ?? currentSessionId,
+        sessionId: event.runId ?? currentRunId ?? event.sessionId ?? currentSessionId,
       });
     });
 
@@ -251,7 +255,9 @@ const gt8004Plugin = {
       const usage = event.usage;
       if (!usage) return;
 
-      const sessionId = event.sessionId ?? currentSessionId;
+      // Use runId as session identifier (each user message = 1 session)
+      if (event.runId) currentRunId = event.runId;
+      const sessionId = event.runId ?? event.sessionId ?? currentSessionId;
       let msgIndex: number | undefined;
       if (sessionId) {
         const idx = sessionMsgIndex.get(sessionId) ?? 0;
